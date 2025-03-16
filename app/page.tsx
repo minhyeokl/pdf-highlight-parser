@@ -1,103 +1,329 @@
+'use client';
+
+// TypeScript 타입 선언 추가
+declare module 'extracthighlights-dist/build/extracthighlights';
+
+import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import Image from "next/image";
+import type * as ExtractHighlights from 'extracthighlights-dist/build/extracthighlights';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [extracthighlights, setExtracthighlights] = useState<typeof ExtractHighlights | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // 모듈을 동적으로 임포트하여 서버 사이드 렌더링 문제 방지
+      const loadModule = async () => {
+        try {
+          // require.ensure를 처리하기 위한 임시 코드
+          if (!(window as any).require) {
+            (window as any).require = {};
+          }
+          if (!(window as any).require.ensure) {
+            (window as any).require.ensure = (deps: any, callback: any) => callback();
+          }
+          
+          const extracthighlightsModule = await import('extracthighlights-dist/build/extracthighlights');
+          
+          // 워커 설정
+          const workerUrl = '/pdf.worker.min.js';
+          extracthighlightsModule.GlobalWorkerOptions.workerSrc = workerUrl;
+          
+          setExtracthighlights(extracthighlightsModule);
+          setLoaded(true);
+        } catch (error) {
+          console.error('extracthighlights 모듈 로딩 오류:', error);
+        }
+      };
+      
+      loadModule();
+    }
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!file || !extracthighlights) return;
+
+    setLoading(true);
+    try {
+      const fileBuffer = await file.arrayBuffer();
+      
+      // PDF 처리 로직
+      const annotations = await processHighlights(fileBuffer);
+      
+      if (annotations.length === 0) {
+        alert('하이라이트된 텍스트를 찾을 수 없습니다.');
+        setLoading(false);
+        return;
+      }
+      
+      // 같은 텍스트별로 그룹화하고 페이지 정렬
+      const groupedHighlights = groupHighlightsByText(annotations);
+      
+      // Create Excel file with grouped highlights
+      const wb = XLSX.utils.book_new();
+      
+      // 가장 많은 페이지 수를 가진 항목 찾기
+      const maxPageCount = Math.max(...groupedHighlights.map(item => item.pageNumbers.length));
+      
+      // 데이터 시트에 필요한 형식으로 변환
+      const worksheetData = groupedHighlights.map(item => {
+        // 기본 객체 생성 (텍스트만 포함)
+        const row: any = {
+          '하이라이트 텍스트': item.text
+        };
+        
+        // 페이지 번호를 각 열에 추가
+        item.pageNumbers.forEach((pageNum, index) => {
+          row[`페이지 ${index + 1}`] = pageNum;
+        });
+        
+        return row;
+      });
+      
+      const ws = XLSX.utils.json_to_sheet(worksheetData);
+      
+      // 열 너비 설정
+      const columnWidths = [
+        { wch: 70 },  // 하이라이트 텍스트
+      ];
+      
+      // 페이지 열 너비 설정
+      for (let i = 0; i < maxPageCount; i++) {
+        columnWidths.push({ wch: 10 }); // 페이지 번호 열
+      }
+      
+      ws['!cols'] = columnWidths;
+      
+      XLSX.utils.book_append_sheet(wb, ws, '하이라이트');
+      XLSX.writeFile(wb, 'highlights.xlsx');
+    } catch (error) {
+      console.error('Error processing PDF:', error);
+      alert('PDF 처리 중 오류가 발생했습니다.');
+    }
+    setLoading(false);
+  };
+
+  // PDF 하이라이트 처리 함수
+  const processHighlights = async (arrayBuffer: ArrayBuffer) => {
+    try {
+      // extracthighlights가 null인 경우 체크
+      if (!extracthighlights) {
+        throw new Error('PDF 처리 모듈이 로드되지 않았습니다.');
+      }
+      
+      // 1. PDF에서 주석 추출
+      const loadingTask = extracthighlights.getDocument(arrayBuffer);
+      const pdf = await loadingTask.promise;
+      const highlights: { text: string; page: number }[] = [];
+      const SUPPORTED_ANNOTS = ['Text', 'Highlight', 'Underline'];
+      
+      // 모든 페이지의 주석 수집
+      const annotationsByPage: any = {};
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        
+        // 페이지 준비 (캔버스 설정)
+        const scale = 1;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        if (!context) continue;
+        
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+        
+        // 주석 가져오기
+        let annotations = await page.getAnnotations();
+        
+        // 하이라이트된 주석만 필터링
+        annotations = annotations
+          .filter((anno: any) => {
+            return SUPPORTED_ANNOTS.includes(anno.subtype || anno.type);
+          })
+          .map((anno: any) => {
+            if (!anno.subtype) anno.subtype = anno.type;
+            anno.pageNumber = i;
+            return anno;
+          });
+        
+        // 페이지 렌더링 (주석과 함께)
+        await page.render(renderContext, annotations);
+        
+        // 하이라이트된 텍스트가 있는 주석만 저장
+        const highlightedAnnotations = annotations.filter((anno: any) => 
+          anno.highlightedText && anno.highlightedText.trim() !== '');
+        
+        if (highlightedAnnotations.length > 0) {
+          annotationsByPage[i] = highlightedAnnotations;
+        }
+      }
+      
+      // 페이지별로 하이라이트 정렬하여 결과 생성
+      Object.keys(annotationsByPage).forEach(pageNumber => {
+        const pageAnnotations = annotationsByPage[pageNumber];
+        
+        // Y 좌표를 기준으로 정렬 (위에서 아래로)
+        pageAnnotations.sort((a: any, b: any) => {
+          if (a.quadPoints?.[0]?.dims?.minY < b.quadPoints?.[0]?.dims?.minY) return -1;
+          if (a.quadPoints?.[0]?.dims?.minY > b.quadPoints?.[0]?.dims?.minY) return 1;
+          return 0;
+        });
+        
+        // 정렬된 주석들을 결과에 추가
+        pageAnnotations.forEach((anno: any) => {
+          // 메모(contents)가 있는지 확인하고, 있으면 우선 사용
+          let extractedText = '';
+          
+          // 메모(주석) 내용이 있으면 우선적으로 사용
+          if (anno.contents && anno.contents.trim() !== '') {
+            extractedText = anno.contents.trim();
+          } 
+          // 메모가 없는 경우 하이라이트된 텍스트 사용
+          else if (anno.highlightedText && anno.highlightedText.trim() !== '') {
+            extractedText = anno.highlightedText.trim();
+          }
+          
+          // 줄바꿈을 공백으로 대체하고 앞뒤 공백 제거
+          const cleanText = extractedText
+            .replace(/\r?\n|\r/g, ' ')  // 모든 종류의 줄바꿈을 공백으로 대체
+            .replace(/\s+/g, ' ')       // 연속된 공백을 하나의 공백으로 대체
+            .trim();                     // 앞뒤 공백 제거
+            
+          if (cleanText) {
+              highlights.push({
+              text: cleanText,
+              page: parseInt(pageNumber)
+              });
+            }
+        });
+      });
+      
+      return highlights;
+    } catch (error) {
+      console.error('PDF 하이라이트 처리 오류:', error);
+      return [];
+    }
+  };
+  
+  // 하이라이트 텍스트별로 그룹화하는 함수
+  const groupHighlightsByText = (annotations: { text: string; page: number }[]) => {
+    // 텍스트별로 그룹화
+    const groupedByText: { [key: string]: number[] } = {};
+    
+    // 각 하이라이트된 텍스트에 대해
+    annotations.forEach(({ text, page }) => {
+      // 빈 텍스트 무시
+      if (!text.trim()) return;
+      
+      // 이미 그룹에 있으면 페이지만 추가
+      if (groupedByText[text]) {
+        // 페이지가 이미 목록에 있는지 확인 (중복 제거)
+        if (!groupedByText[text].includes(page)) {
+          groupedByText[text].push(page);
+        }
+      } else {
+        // 새 그룹 생성
+        groupedByText[text] = [page];
+      }
+    });
+    
+    // 각 그룹의 페이지 번호 정렬
+    Object.keys(groupedByText).forEach(text => {
+      groupedByText[text].sort((a, b) => a - b);
+    });
+    
+    // 최종 결과 형식으로 변환 (페이지 번호는 배열로 유지)
+    const result = Object.keys(groupedByText).map(text => {
+      return {
+        text: text,
+        pageNumbers: groupedByText[text]
+      };
+    });
+    
+    // 첫 페이지 번호가 가장 작은 순서대로 정렬
+    return result.sort((a, b) => {
+      const aFirstPage = a.pageNumbers[0];
+      const bFirstPage = b.pageNumbers[0];
+      return aFirstPage - bFirstPage;
+    });
+  };
+  
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 sm:p-12">
+      <div className="z-10 max-w-2xl w-full items-center justify-center">
+        <h1 className="text-4xl font-bold mb-8 text-center">PDF 하이라이트 추출기</h1>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold mb-2">사용 방법</h2>
+            <ol className="list-decimal pl-5 space-y-1 text-gray-700">
+              <li>PDF 파일을 선택합니다.</li>
+              <li>하이라이트 추출하기 버튼을 클릭합니다.</li>
+              <li>추출된 하이라이트가 Excel 파일로 저장됩니다.</li>
+            </ol>
+            <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded">
+              <p className="font-medium mb-1">✨ Excel 결과 형식:</p>
+              <ul className="list-disc pl-5">
+                <li>A열: 하이라이트된 텍스트</li>
+                <li>B열부터: 각 텍스트가 등장하는 페이지 번호가 순서대로 정렬</li>
+                <li>결과는 첫 페이지 번호 순으로 정렬됩니다.</li>
+                <li>여러 줄에 걸친 하이라이트는 자동으로 한 줄로 합쳐집니다.</li>
+                <li>PDF에 메모가 있는 경우, 하이라이트된 텍스트보다 메모 내용을 우선적으로 추출합니다.</li>
+              </ul>
+            </div>
+          </div>
+          
+          <input
+            type="file"
+            accept=".pdf"
+            onChange={handleFileChange}
+            className="block w-full text-sm text-slate-500
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-full file:border-0
+              file:text-sm file:font-semibold
+              file:bg-violet-50 file:text-violet-700
+              hover:file:bg-violet-100"
+          />
+          
+          <button
+            onClick={handleSubmit}
+            disabled={!file || loading || !loaded}
+            className={`mt-4 w-full py-3 px-4 rounded-md text-white font-semibold
+              ${!file || loading || !loaded
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-violet-600 hover:bg-violet-700'
+              }`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {!loaded 
+              ? '준비 중...' 
+              : loading 
+                ? '처리 중...' 
+                : '하이라이트 추출하기'}
+          </button>
+          
+          {file && (
+            <p className="mt-3 text-sm text-gray-600">
+              선택된 파일: {file.name}
+            </p>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }
