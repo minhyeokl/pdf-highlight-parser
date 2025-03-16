@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PDF 하이라이트 추출기
 
-## Getting Started
+PDF 문서에서 하이라이트된 텍스트와 메모를 추출하여 Excel 파일로 저장하는 웹 애플리케이션입니다.
 
-First, run the development server:
+## 주요 기능
+
+- PDF 파일에서 하이라이트된 텍스트 추출
+- PDF 메모(주석) 내용 우선 추출 (메모가 있는 경우)
+- 여러 줄에 걸친 하이라이트 자동으로 한 줄로 합치기
+- 동일한 하이라이트 텍스트 그룹화
+- 페이지 번호 정렬 및 정리
+- Excel 파일로 결과 저장
+- CSV 형식으로 내보내기 (구글 시트 가져오기용)
+
+## 사용 방법
+
+1. PDF 파일을 선택합니다.
+2. "하이라이트 추출하기" 버튼을 클릭합니다.
+3. 추출된 하이라이트가 Excel 파일로 저장됩니다.
+4. 필요시 CSV 파일로도 다운로드 할 수 있습니다.
+
+## Excel 결과 형식
+
+- A열: 하이라이트된 텍스트
+- B열부터: 각 텍스트가 등장하는 페이지 번호가 순서대로 정렬
+- 결과는 첫 페이지 번호 순으로 정렬됩니다.
+- 여러 줄에 걸친 하이라이트는 자동으로 한 줄로 합쳐집니다.
+- PDF에 메모가 있는 경우, 하이라이트된 텍스트보다 메모 내용을 우선적으로 추출합니다.
+
+## 기술 스택
+
+- Next.js
+- TypeScript
+- PDF.js
+- extracthighlights-dist
+- XLSX.js
+- Tailwind CSS
+
+## 개발 환경 설정
 
 ```bash
+# 저장소 클론
+git clone https://github.com/minhyeokl/pdf-highlight-parser.git
+cd pdf-highlight-parser
+
+# 의존성 설치
+npm install
+
+# 개발 서버 실행
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 라이선스
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
