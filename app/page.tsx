@@ -356,9 +356,9 @@ export default function Home() {
           <div className="mb-5">
             <h2 className="text-xl font-semibold mb-2">사용 방법</h2>
             <ol className="list-decimal pl-5 space-y-1 text-gray-700">
-              <li>PDF 파일을 선택합니다.</li>
-              <li>하이라이트 추출하기 버튼을 클릭합니다.</li>
-              <li>추출된 하이라이트가 Excel 파일로 저장됩니다.</li>
+              <li>[파일 선택] 버튼을 클릭하고 하이라이트를 추출할 PDF 파일을 선택합니다.</li>
+              <li>[하이라이트 추출하기] 버튼을 클릭합니다.</li>
+              <li>추출한 하이라이트를 Excel 파일로 저장합니다.</li>
             </ol>
             <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded">
               <p className="font-medium mb-1">✨ Excel 결과 형식:</p>
