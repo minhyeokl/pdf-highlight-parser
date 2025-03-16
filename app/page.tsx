@@ -101,7 +101,7 @@ export default function Home() {
       // 같은 텍스트별로 그룹화하고 페이지 정렬
       const groupedHighlights = groupHighlightsByText(annotations);
       
-      // Create Excel file with grouped highlights
+      // Excel 파일 생성
       const wb = XLSX.utils.book_new();
       
       // 가장 많은 페이지 수를 가진 항목 찾기
@@ -139,20 +139,10 @@ export default function Home() {
       XLSX.utils.book_append_sheet(wb, ws, '하이라이트');
       XLSX.writeFile(wb, 'highlights.xlsx');
       
-      // 구글 시트로 바로 열기 옵션 제공
-      if (confirm('하이라이트가 Excel 파일로 저장되었습니다.\n추가로 CSV 파일을 다운로드하여 구글 시트에서 열어보시겠습니까?')) {
-        // CSV 파일 다운로드
-        createGoogleSheetsLink(groupedHighlights);
-        
-        // 구글 시트 열기 안내
-        setTimeout(() => {
-          if (confirm('CSV 파일이 다운로드되었습니다.\n구글 시트 웹사이트를 열어 가져오기 하시겠습니까?')) {
-            window.open('https://docs.google.com/spreadsheets/d/create-new', '_blank');
-          }
-        }, 500);
-      }
+      alert('하이라이트가 Excel 파일로 저장되었습니다.');
+      
     } catch (error) {
-      console.error('Error processing PDF:', error);
+      console.error('PDF 처리 오류:', error);
       alert('PDF 처리 중 오류가 발생했습니다.');
     }
     setLoading(false);
@@ -166,7 +156,7 @@ export default function Home() {
         throw new Error('PDF 처리 모듈이 로드되지 않았습니다.');
       }
       
-      // 1. PDF에서 주석 추출
+      // PDF에서 주석 추출
       const loadingTask = extracthighlights.getDocument(arrayBuffer);
       const pdf = await loadingTask.promise;
       const highlights: HighlightItem[] = [];
@@ -315,39 +305,6 @@ export default function Home() {
     });
   };
   
-  // 구글 시트용 CSV 데이터를 생성하고 시트에서 열 수 있는 링크를 반환하는 함수
-  const createGoogleSheetsLink = (groupedHighlights: GroupedHighlight[]): string => {
-    // CSV 헤더 생성
-    let csvContent = "하이라이트 텍스트,페이지 번호\n";
-    
-    // CSV 데이터 행 추가
-    groupedHighlights.forEach(item => {
-      // 텍스트에 큰따옴표가 있으면 두 개로 치환 (CSV 이스케이프)
-      const escapedText = item.text.replace(/"/g, '""');
-      // 텍스트를 큰따옴표로 감싸고 페이지 번호는 쉼표로 구분
-      csvContent += `"${escapedText}","${item.pageNumbers.join(', ')}"\n`;
-    });
-    
-    // CSV 파일 생성 및 다운로드 링크 생성
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    // 임시로 다운로드 링크를 생성하고 클릭하여 CSV 파일 다운로드
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'highlights.csv');
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Blob URL 해제
-    URL.revokeObjectURL(url);
-    
-    // 구글 시트 가져오기 URL 반환
-    return 'https://docs.google.com/spreadsheets/d/create-new';
-  };
-  
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 sm:p-12">
       <div className="z-10 max-w-2xl w-full items-center justify-center">
@@ -356,9 +313,9 @@ export default function Home() {
           <div className="mb-5">
             <h2 className="text-xl font-semibold mb-2">사용 방법</h2>
             <ol className="list-decimal pl-5 space-y-1 text-gray-700">
-              <li>[파일 선택] 버튼을 클릭하고 하이라이트를 추출할 PDF 파일을 선택합니다.</li>
-              <li>[하이라이트 추출하기] 버튼을 클릭합니다.</li>
-              <li>추출한 하이라이트를 Excel 파일로 저장합니다.</li>
+              <li>PDF 파일을 선택합니다.</li>
+              <li>하이라이트 추출하기 버튼을 클릭합니다.</li>
+              <li>추출된 하이라이트가 Excel 파일로 저장됩니다.</li>
             </ol>
             <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded">
               <p className="font-medium mb-1">✨ Excel 결과 형식:</p>
