@@ -5,8 +5,40 @@ declare module 'extracthighlights-dist/build/extracthighlights';
 
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import Image from "next/image";
 import type * as ExtractHighlights from 'extracthighlights-dist/build/extracthighlights';
+
+// 인터페이스 정의
+interface HighlightAnnotation {
+  highlightedText?: string;
+  contents?: string;
+  subtype?: string;
+  type?: string;
+  pageNumber?: number;
+  quadPoints?: Array<{
+    dims?: {
+      minY?: number;
+      maxY?: number;
+    }
+  }>;
+}
+
+interface HighlightItem {
+  text: string;
+  page: number;
+}
+
+interface GroupedHighlight {
+  text: string;
+  pageNumbers: number[];
+}
+
+interface ExcelRow {
+  [key: string]: string | number;
+}
+
+interface ColumnWidth {
+  wch: number;
+}
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -24,7 +56,7 @@ export default function Home() {
             (window as any).require = {};
           }
           if (!(window as any).require.ensure) {
-            (window as any).require.ensure = (deps: any, callback: any) => callback();
+            (window as any).require.ensure = (deps: unknown[], callback: () => void) => callback();
           }
           
           const extracthighlightsModule = await import('extracthighlights-dist/build/extracthighlights');
@@ -78,7 +110,7 @@ export default function Home() {
       // 데이터 시트에 필요한 형식으로 변환
       const worksheetData = groupedHighlights.map(item => {
         // 기본 객체 생성 (텍스트만 포함)
-        const row: any = {
+        const row: ExcelRow = {
           '하이라이트 텍스트': item.text
         };
         
@@ -93,7 +125,7 @@ export default function Home() {
       const ws = XLSX.utils.json_to_sheet(worksheetData);
       
       // 열 너비 설정
-      const columnWidths = [
+      const columnWidths: ColumnWidth[] = [
         { wch: 70 },  // 하이라이트 텍스트
       ];
       
@@ -106,6 +138,19 @@ export default function Home() {
       
       XLSX.utils.book_append_sheet(wb, ws, '하이라이트');
       XLSX.writeFile(wb, 'highlights.xlsx');
+      
+      // 구글 시트로 바로 열기 옵션 제공
+      if (confirm('하이라이트가 Excel 파일로 저장되었습니다.\n추가로 CSV 파일을 다운로드하여 구글 시트에서 열어보시겠습니까?')) {
+        // CSV 파일 다운로드
+        createGoogleSheetsLink(groupedHighlights);
+        
+        // 구글 시트 열기 안내
+        setTimeout(() => {
+          if (confirm('CSV 파일이 다운로드되었습니다.\n구글 시트 웹사이트를 열어 가져오기 하시겠습니까?')) {
+            window.open('https://docs.google.com/spreadsheets/d/create-new', '_blank');
+          }
+        }, 500);
+      }
     } catch (error) {
       console.error('Error processing PDF:', error);
       alert('PDF 처리 중 오류가 발생했습니다.');
@@ -114,7 +159,7 @@ export default function Home() {
   };
 
   // PDF 하이라이트 처리 함수
-  const processHighlights = async (arrayBuffer: ArrayBuffer) => {
+  const processHighlights = async (arrayBuffer: ArrayBuffer): Promise<HighlightItem[]> => {
     try {
       // extracthighlights가 null인 경우 체크
       if (!extracthighlights) {
@@ -124,11 +169,11 @@ export default function Home() {
       // 1. PDF에서 주석 추출
       const loadingTask = extracthighlights.getDocument(arrayBuffer);
       const pdf = await loadingTask.promise;
-      const highlights: { text: string; page: number }[] = [];
+      const highlights: HighlightItem[] = [];
       const SUPPORTED_ANNOTS = ['Text', 'Highlight', 'Underline'];
       
       // 모든 페이지의 주석 수집
-      const annotationsByPage: any = {};
+      const annotationsByPage: Record<string, HighlightAnnotation[]> = {};
       
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
@@ -154,10 +199,10 @@ export default function Home() {
         
         // 하이라이트된 주석만 필터링
         annotations = annotations
-          .filter((anno: any) => {
-            return SUPPORTED_ANNOTS.includes(anno.subtype || anno.type);
+          .filter((anno: HighlightAnnotation) => {
+            return SUPPORTED_ANNOTS.includes(anno.subtype || anno.type || '');
           })
-          .map((anno: any) => {
+          .map((anno: HighlightAnnotation) => {
             if (!anno.subtype) anno.subtype = anno.type;
             anno.pageNumber = i;
             return anno;
@@ -167,7 +212,7 @@ export default function Home() {
         await page.render(renderContext, annotations);
         
         // 하이라이트된 텍스트가 있는 주석만 저장
-        const highlightedAnnotations = annotations.filter((anno: any) => 
+        const highlightedAnnotations = annotations.filter((anno: HighlightAnnotation) => 
           anno.highlightedText && anno.highlightedText.trim() !== '');
         
         if (highlightedAnnotations.length > 0) {
@@ -180,14 +225,19 @@ export default function Home() {
         const pageAnnotations = annotationsByPage[pageNumber];
         
         // Y 좌표를 기준으로 정렬 (위에서 아래로)
-        pageAnnotations.sort((a: any, b: any) => {
-          if (a.quadPoints?.[0]?.dims?.minY < b.quadPoints?.[0]?.dims?.minY) return -1;
-          if (a.quadPoints?.[0]?.dims?.minY > b.quadPoints?.[0]?.dims?.minY) return 1;
+        pageAnnotations.sort((a: HighlightAnnotation, b: HighlightAnnotation) => {
+          const aMinY = a.quadPoints?.[0]?.dims?.minY;
+          const bMinY = b.quadPoints?.[0]?.dims?.minY;
+          
+          if (aMinY !== undefined && bMinY !== undefined) {
+            if (aMinY < bMinY) return -1;
+            if (aMinY > bMinY) return 1;
+          }
           return 0;
         });
         
         // 정렬된 주석들을 결과에 추가
-        pageAnnotations.forEach((anno: any) => {
+        pageAnnotations.forEach((anno: HighlightAnnotation) => {
           // 메모(contents)가 있는지 확인하고, 있으면 우선 사용
           let extractedText = '';
           
@@ -223,9 +273,9 @@ export default function Home() {
   };
   
   // 하이라이트 텍스트별로 그룹화하는 함수
-  const groupHighlightsByText = (annotations: { text: string; page: number }[]) => {
+  const groupHighlightsByText = (annotations: HighlightItem[]): GroupedHighlight[] => {
     // 텍스트별로 그룹화
-    const groupedByText: { [key: string]: number[] } = {};
+    const groupedByText: Record<string, number[]> = {};
     
     // 각 하이라이트된 텍스트에 대해
     annotations.forEach(({ text, page }) => {
@@ -263,6 +313,39 @@ export default function Home() {
       const bFirstPage = b.pageNumbers[0];
       return aFirstPage - bFirstPage;
     });
+  };
+  
+  // 구글 시트용 CSV 데이터를 생성하고 시트에서 열 수 있는 링크를 반환하는 함수
+  const createGoogleSheetsLink = (groupedHighlights: GroupedHighlight[]): string => {
+    // CSV 헤더 생성
+    let csvContent = "하이라이트 텍스트,페이지 번호\n";
+    
+    // CSV 데이터 행 추가
+    groupedHighlights.forEach(item => {
+      // 텍스트에 큰따옴표가 있으면 두 개로 치환 (CSV 이스케이프)
+      const escapedText = item.text.replace(/"/g, '""');
+      // 텍스트를 큰따옴표로 감싸고 페이지 번호는 쉼표로 구분
+      csvContent += `"${escapedText}","${item.pageNumbers.join(', ')}"\n`;
+    });
+    
+    // CSV 파일 생성 및 다운로드 링크 생성
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    // 임시로 다운로드 링크를 생성하고 클릭하여 CSV 파일 다운로드
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'highlights.csv');
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Blob URL 해제
+    URL.revokeObjectURL(url);
+    
+    // 구글 시트 가져오기 URL 반환
+    return 'https://docs.google.com/spreadsheets/d/create-new';
   };
   
   return (
