@@ -137,7 +137,11 @@ export default function Home() {
       ws['!cols'] = columnWidths;
       
       XLSX.utils.book_append_sheet(wb, ws, '하이라이트');
-      XLSX.writeFile(wb, 'highlights.xlsx');
+      
+      // PDF 파일명에서 확장자를 제거하고 -highlight.xlsx를 추가
+      const pdfFileName = file.name.replace('.pdf', '');
+      const excelFileName = `${pdfFileName}-highlight.xlsx`;
+      XLSX.writeFile(wb, excelFileName);
       
       alert('하이라이트가 Excel 파일로 저장되었습니다.');
       
