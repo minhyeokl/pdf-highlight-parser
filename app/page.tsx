@@ -244,14 +244,13 @@ export default function Home() {
             extractedText = anno.highlightedText.trim();
           }
           
-          // 줄바꿈을 공백으로 대체하고 앞뒤 공백 제거
-          /*
+        
           const cleanText = extractedText
             .replace(/\r?\n|\r/g, ' ')  // 모든 종류의 줄바꿈을 공백으로 대체
             .replace(/\s+/g, ' ')       // 연속된 공백을 하나의 공백으로 대체
             .trim();                     // 앞뒤 공백 제거
-            */
-          const cleanText = extractedText;
+            
+
           if (cleanText) {
               highlights.push({
               text: cleanText,
