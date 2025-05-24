@@ -353,6 +353,11 @@ export default function Home() {
                 <li>PDF에 메모가 있는 경우, 하이라이트된 텍스트보다 메모 내용을 우선적으로 추출합니다.</li>
               </ul>
             </div>
+            
+            <div className="mt-3 text-sm text-amber-700 bg-amber-50 p-3 rounded border-l-4 border-amber-400">
+              <p className="font-medium mb-1">⚠️ 주의사항:</p>
+              <p>Acrobat의 강조 주석 방식 변경으로 의도치 않은 공백문자가 추가될 수 있습니다.</p>
+            </div>
           </div>
           
           <input
