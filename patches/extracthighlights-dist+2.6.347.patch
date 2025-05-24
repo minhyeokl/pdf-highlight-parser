@@ -1,0 +1,20 @@
+diff --git a/node_modules/extracthighlights-dist/build/extracthighlights.js b/node_modules/extracthighlights-dist/build/extracthighlights.js
+index 559f4e1..ebfb0dd 100644
+--- a/node_modules/extracthighlights-dist/build/extracthighlights.js
++++ b/node_modules/extracthighlights-dist/build/extracthighlights.js
+@@ -15575,7 +15575,15 @@
+                                         var quad = this.charInAnnot(annot, charDims);
+ 
+                                         if(quad >= 0) {
++                                            // quad 값이 바뀌는 지점에서 공백 추가
++                                            if (this.annotations[j].lastQuad !== undefined && 
++                                                this.annotations[j].lastQuad !== quad && 
++                                                this.annotations[j].highlightedText.length > 0) {
++                                                this.annotations[j].highlightedText += ' ';
++                                            }
++                                            
+                                             this.annotations[j].highlightedText += glyph.unicode;
++                                            this.annotations[j].lastQuad = quad;
+                                         }
+ 
+                                         this.updateMarkup(annot, quad, glyph, charDims, false);
