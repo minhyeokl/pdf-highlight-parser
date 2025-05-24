@@ -48,7 +48,7 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // 모듈을 동적으로 임포트하여 서버 사이드 렌더링 문제 방지
+      // 수정된 라이브러리를 동적으로 로드
       const loadModule = async () => {
         try {
           // require.ensure를 처리하기 위한 임시 코드
@@ -59,14 +59,36 @@ export default function Home() {
             (window as any).require.ensure = (deps: unknown[], callback: () => void) => callback();
           }
           
-          const extracthighlightsModule = await import('extracthighlights-dist/build/extracthighlights');
+          // 수정된 extracthighlights.js를 스크립트로 동적 로드
+          const script = document.createElement('script');
+          script.src = '/extracthighlights.js';
+          script.onload = () => {
+            // 글로벌 스코프에서 라이브러리 가져오기
+            const extracthighlightsModule = (window as any)['extracthighlights-dist/build/extracthighlights'] || (window as any).extracthighlightsLib;
+            
+            if (extracthighlightsModule) {
+              // 워커 설정
+              const workerUrl = '/pdf.worker.min.js';
+              extracthighlightsModule.GlobalWorkerOptions.workerSrc = workerUrl;
+              
+              setExtracthighlights(extracthighlightsModule);
+              setLoaded(true);
+            } else {
+              console.error('extracthighlights 모듈을 찾을 수 없습니다.');
+            }
+          };
+          script.onerror = () => {
+            console.error('extracthighlights 스크립트 로딩 실패');
+            // 실패 시 원본 모듈로 폴백
+            import('extracthighlights-dist/build/extracthighlights').then(module => {
+              const workerUrl = '/pdf.worker.min.js';
+              module.GlobalWorkerOptions.workerSrc = workerUrl;
+              setExtracthighlights(module);
+              setLoaded(true);
+            });
+          };
+          document.head.appendChild(script);
           
-          // 워커 설정
-          const workerUrl = '/pdf.worker.min.js';
-          extracthighlightsModule.GlobalWorkerOptions.workerSrc = workerUrl;
-          
-          setExtracthighlights(extracthighlightsModule);
-          setLoaded(true);
         } catch (error) {
           console.error('extracthighlights 모듈 로딩 오류:', error);
         }
