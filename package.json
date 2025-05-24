@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build", 
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@next/third-parties": "^15.1.8",
+    "@vercel/analytics": "^1.5.0",
     "extracthighlights-dist": "github:akaalias/extracthighlights-dist",
     "next": "15.2.2",
     "node-ensure": "^0.0.0",
