@@ -13,7 +13,7 @@
     "@next/third-parties": "^15.1.8",
     "@vercel/analytics": "^1.5.0",
     "extracthighlights-dist": "github:akaalias/extracthighlights-dist",
-    "next": "15.2.2",
+    "next": "15.2.8",
     "node-ensure": "^0.0.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.0.375",
