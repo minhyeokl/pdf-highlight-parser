@@ -192,47 +192,55 @@ export default function Home() {
       const annotationsByPage: Record<string, HighlightAnnotation[]> = {};
       
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        
-        // 페이지 준비 (캔버스 설정)
-        const scale = 1;
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        
-        if (!context) continue;
-        
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport
-        };
-        
-        // 주석 가져오기
-        let annotations = await page.getAnnotations();
-        
-        // 하이라이트된 주석만 필터링
-        annotations = annotations
-          .filter((anno: HighlightAnnotation) => {
-            return SUPPORTED_ANNOTS.includes(anno.subtype || anno.type || '');
-          })
-          .map((anno: HighlightAnnotation) => {
-            if (!anno.subtype) anno.subtype = anno.type;
-            anno.pageNumber = i;
-            return anno;
-          });
-        
-        // 페이지 렌더링 (주석과 함께)
-        await page.render(renderContext, annotations);
-        
-        // 하이라이트된 텍스트가 있는 주석만 저장
-        const highlightedAnnotations = annotations.filter((anno: HighlightAnnotation) => 
-          anno.highlightedText && anno.highlightedText.trim() !== '');
-        
-        if (highlightedAnnotations.length > 0) {
-          annotationsByPage[i] = highlightedAnnotations;
+        try {
+          const page = await pdf.getPage(i);
+
+          // 주석 가져오기
+          let annotations = await page.getAnnotations();
+
+          // 하이라이트된 주석만 필터링
+          annotations = annotations
+            .filter((anno: HighlightAnnotation) => {
+              return SUPPORTED_ANNOTS.includes(anno.subtype || anno.type || '');
+            })
+            .map((anno: HighlightAnnotation) => {
+              if (!anno.subtype) anno.subtype = anno.type;
+              anno.pageNumber = i;
+              return anno;
+            });
+
+          // 하이라이트 주석이 없는 페이지는 렌더링 건너뛰기
+          if (annotations.length === 0) continue;
+
+          // 페이지 준비 (캔버스 설정)
+          const scale = 1;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+
+          if (!context) continue;
+
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+          };
+
+          // 페이지 렌더링 (주석과 함께)
+          await page.render(renderContext, annotations);
+
+          // 하이라이트된 텍스트가 있는 주석만 저장
+          const highlightedAnnotations = annotations.filter((anno: HighlightAnnotation) =>
+            anno.highlightedText && anno.highlightedText.trim() !== '');
+
+          if (highlightedAnnotations.length > 0) {
+            annotationsByPage[i] = highlightedAnnotations;
+          }
+        } catch (pageError) {
+          console.warn(`페이지 ${i} 처리 중 오류 (건너뜀):`, pageError);
+          continue;
         }
       }
       

@@ -15634,6 +15634,7 @@
                             var glyphsLength = glyphs.length;
                             var isTextInvisible = current.textRenderingMode === _util.TextRenderingMode.INVISIBLE;
                             var i, glyph, width, spacingLength;
+                            var spaceWidth = font.coded ? font.spaceWidth : font.spaceWidth * 0.001;
                             var sw, spaceWidthProj, font2dev = [];
 
                             if (isTextInvisible || fontSize === 0) {
